@@ -1,42 +1,38 @@
-from http import client
-from telnetlib import SE
-from turtle import pos, title
-from unicodedata import name
+from xmlrpc.server import CGIXMLRPCRequestHandler
 import praw
 import secret
-import pandas as pd
+from pymongo import MongoClient
 
-# load_dotenv("/Users/zejun/Desktop/python projects/discord-bot/credentials.env")
-# secret = os.getenv('SECRET')
-# id = os.getenv("ID")
-# print(secret)
-
-
-def redditScraper():
+def reddit_scraper():
     reddit = praw.Reddit(client_id = secret.ID, client_secret = secret.SECRET, user_agent = "Scraper 1.0 by zzzuh")
     subreddit = reddit.subreddit("buildapcsales")
-    submissions = set()
 
-    df = pd.DataFrame(columns = ["Title", "URL", "Category", "Price"])
-    
+    cluster = MongoClient(secret.MONGO_URL)
+    db = cluster["buildAPC"]
+    my_collection = db['pcParts']
+
+
     for post in subreddit.stream.submissions():
         flair = post.link_flair_text
         title = post.title
-        price = ""
         url = post.url
-        if "$" in title:
-            price = title[title.index("$"):]
-        print(pd.concat([df, pd.DataFrame({"Title": [title], "URL": [url], "Category": [flair], "Price": [price]})]))
+
+        if "Expired" in flair:
+            continue
+
+        if my_collection.count_documents({'Title': title}, limit = 1) != 0:
+            continue
+
+        submission = {"Category": flair, "Title": title, "Link": url}
+        my_collection.insert_one(submission)
+        print(title, flair, url)
         
 
 def main():
-    redditScraper()
+    reddit_scraper()
 
 if __name__ == "__main__":
     main()
-
-
-redditScraper()
 
 
 
